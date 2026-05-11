@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CyberAware — Help</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+    <style>
+      .help-hero {
+        padding: 2.5rem 0 2rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 2.5rem;
+      }
+      .help-hero h1 span { color: var(--accent); }
+      .help-hero p { color: var(--text-dim); max-width: 560px; margin-top: 0.5rem; }
+
+      /* Steps */
+      .steps { display: flex; flex-direction: column; gap: 0; margin-bottom: 3rem; position: relative; }
+      .steps::before {
+        content: '';
+        position: absolute; left: 31px; top: 0; bottom: 0; width: 2px;
+        background: linear-gradient(to bottom, var(--accent), var(--accent2), transparent);
+      }
+      .step {
+        display: flex; gap: 1.5rem; align-items: flex-start;
+        padding: 1.5rem 0; opacity: 0;
+      }
+      .step-num {
+        width: 44px; height: 44px; border-radius: 50%;
+        background: var(--bg2); border: 2px solid var(--accent);
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--font-mono); font-size: 1rem; color: var(--accent);
+        font-weight: 700; flex-shrink: 0; position: relative; z-index: 1;
+      }
+      .step-body { padding-top: 6px; flex: 1; }
+      .step-body h3 { font-size: 1.05rem; color: #fff; margin-bottom: 0.4rem; }
+      .step-body p  { font-size: 0.88rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 0.6rem; }
+      .step-body .tip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(0,200,255,0.06); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 0.4rem 0.8rem;
+        font-family: var(--font-mono); font-size: 0.77rem; color: var(--accent2);
+      }
+
+      /* Feature cards */
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 1rem; margin-bottom: 3rem;
+      }
+      .feature-card {
+        padding: 1.25rem;
+        opacity: 0;
+      }
+      .feature-card .feat-icon { font-size: 1.6rem; margin-bottom: 0.75rem; }
+      .feature-card h3 { font-size: 0.9rem; color: var(--accent); font-family: var(--font-mono); letter-spacing: 1px; margin-bottom: 0.5rem; text-transform: uppercase; }
+      .feature-card p  { font-size: 0.83rem; color: var(--text-dim); line-height: 1.6; }
+
+      /* FAQ */
+      .faq-section { margin-bottom: 3rem; }
+      .faq-section h2 { margin-bottom: 1.25rem; }
+      .faq-item {
+        border-bottom: 1px solid var(--border);
+      }
+      .faq-question {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 1rem 0; cursor: pointer;
+        font-size: 0.92rem; color: var(--text);
+        user-select: none;
+        transition: color 0.2s;
+      }
+      .faq-question:hover { color: var(--accent); }
+      .faq-arrow {
+        font-size: 0.75rem; color: var(--accent);
+        transition: transform 0.25s;
+        flex-shrink: 0; margin-left: 1rem;
+      }
+      .faq-arrow.open { transform: rotate(180deg); }
+      .faq-answer {
+        max-height: 0; overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+      .faq-answer p {
+        padding-bottom: 1rem; font-size: 0.87rem; color: var(--text-dim); line-height: 1.7;
+      }
+      .faq-answer a { color: var(--accent); }
+
+      /* Data source callout */
+      .source-callout {
+        display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+        padding: 1.25rem 1.5rem;
+        background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+        border-radius: var(--radius);
+        margin-bottom: 2rem;
+      }
+      .source-callout .src-icon { font-size: 2rem; flex-shrink: 0; }
+      .source-callout h3 { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); margin-bottom: 3px; }
+      .source-callout p  { font-size: 0.83rem; color: var(--text-dim); }
+      .source-callout a  { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="index.html" class="nav-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/>
+        </svg>
+        CYBERAWARE
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="breach.html">Breach Check</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="help.html" class="active">Help</a></li>
+      </ul>
+    </nav>
+
+    <div class="page">
+      <div class="help-hero">
+        <p class="section-label">// user guide</p>
+        <h1>HOW TO USE <span>CYBERAWARE</span></h1>
+        <p>Follow these steps to get the most out of your threat intelligence dashboard.</p>
+      </div>
+
+      <!-- Steps -->
+      <div style="margin-bottom:2rem">
+        <p class="section-label">// getting started</p>
+        <h2 style="margin-bottom:1.5rem">Step-by-Step Guide</h2>
+        <div class="steps">
+
+          <div class="step" id="step0">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>&#128269; Search for Vulnerabilities</h3>
+              <p>Go to the <a href="index.html" style="color:var(--accent)">Dashboard</a> and type a vendor or software name into the search bar — for example <em>Windows</em>, <em>Chrome</em>, <em>Apache</em>, or <em>Cisco</em>. Press Enter or click Search.</p>
+              <span class="tip">&#128161; You can also click <strong>Latest Critical</strong> to instantly load the most recent critical-severity CVEs.</span>
+            </div>
+          </div>
+
+          <div class="step" id="step1">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>&#127777; Filter by Severity</h3>
+              <p>Use the checkboxes in the left sidebar to narrow results to the severity levels that matter to you — Critical, High, Medium, or Low. The charts update automatically as you filter.</p>
+              <span class="tip">&#128161; For urgent threats, check only <strong style="color:var(--critical)">Critical</strong> and <strong style="color:var(--high)">High</strong>.</span>
+            </div>
+          </div>
+
+          <div class="step" id="step2">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>&#128196; View CVE Details</h3>
+              <p>Click <strong>View Details</strong> on any CVE card to open a detail panel. This shows the full description, exact CVSS score, publication date, and links to official references and patches.</p>
+              <span class="tip">&#128161; References often link directly to the vendor's patch or advisory page.</span>
+            </div>
+          </div>
+
+          <div class="step" id="step3">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <h3>&#9733; Save to Your Watchlist</h3>
+              <p>Click <strong>Watch</strong> on any CVE card (or the Save button inside the detail panel) to add it to your watchlist. Watchlisted CVEs are saved to the database so they persist between sessions.</p>
+              <span class="tip">&#128161; Click the <strong>Watchlist</strong> tab at the top of the results area to review all your saved CVEs.</span>
+            </div>
+          </div>
+
+          <div class="step" id="step4">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <h3>&#128274; Check for Data Breaches</h3>
+              <p>Go to the <a href="breach.html" style="color:var(--accent)">Breach Check</a> page and enter any email address. CyberAware will query the XposedOrNot database and tell you if that email appeared in any publicly known data leaks.</p>
+              <span class="tip">&#128161; If breaches are found, follow the on-screen recommendations and change your passwords immediately.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Features -->
+      <div style="margin-bottom:2.5rem">
+        <p class="section-label">// features</p>
+        <h2 style="margin-bottom:1.2rem">What CyberAware Can Do</h2>
+        <div class="features-grid">
+          <div class="card feature-card" id="fc0">
+            <div class="feat-icon">&#128270;</div>
+            <h3>CVE Search</h3>
+            <p>Search the National Vulnerability Database by vendor or software name. Results show description, CVSS score, and severity.</p>
+          </div>
+          <div class="card feature-card" id="fc1">
+            <div class="feat-icon">&#127777;</div>
+            <h3>Severity Filtering</h3>
+            <p>Instantly filter results to Critical, High, Medium, or Low severity. Bar and doughnut charts visualize the distribution.</p>
+          </div>
+          <div class="card feature-card" id="fc2">
+            <div class="feat-icon">&#9733;</div>
+            <h3>Personal Watchlist</h3>
+            <p>Save CVEs you care about to a persistent watchlist stored in Supabase. Access your list anytime from the Dashboard.</p>
+          </div>
+          <div class="card feature-card" id="fc3">
+            <div class="feat-icon">&#128274;</div>
+            <h3>Breach Check</h3>
+            <p>Check any email address against XposedOrNot's database of public data breaches. See which services were compromised.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data sources -->
+      <div style="margin-bottom:2.5rem">
+        <p class="section-label">// data sources</p>
+        <h2 style="margin-bottom:1.2rem">Where Does the Data Come From?</h2>
+        <div class="source-callout">
+          <div class="src-icon">&#127970;</div>
+          <div>
+            <h3>NVD API 2.0 — National Vulnerability Database</h3>
+            <p>Maintained by <strong>NIST (National Institute of Standards and Technology)</strong>, a U.S. government agency. The industry gold standard for CVE data. No API key required. <a href="https://nvd.nist.gov" target="_blank">nvd.nist.gov</a></p>
+          </div>
+        </div>
+        <div class="source-callout">
+          <div class="src-icon">&#128272;</div>
+          <div>
+            <h3>XposedOrNot API</h3>
+            <p>An open-source data breach aggregator that indexes publicly disclosed leaks. Free and no authentication required. <a href="https://xposedornot.com" target="_blank">xposedornot.com</a></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="faq-section">
+        <p class="section-label">// frequently asked questions</p>
+        <h2>FAQ</h2>
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            What is a CVE?
+            <span class="faq-arrow">&#9660;</span>
+          </div>
+          <div class="faq-answer"><p>CVE stands for Common Vulnerabilities and Exposures. It's a standardized identifier for publicly known cybersecurity vulnerabilities. Each CVE has a unique ID (e.g. CVE-2024-1234), a description, and a CVSS severity score assigned by NIST.</p></div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            What is a CVSS score?
+            <span class="faq-arrow">&#9660;</span>
+          </div>
+          <div class="faq-answer"><p>CVSS (Common Vulnerability Scoring System) rates a vulnerability's severity from 0.0 to 10.0. It factors in how easily a vulnerability can be exploited, whether it requires authentication, and what impact it has. Scores 9.0–10.0 are Critical, 7.0–8.9 are High, 4.0–6.9 are Medium, and 0.1–3.9 are Low.</p></div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            Is my email stored when I do a breach check?
+            <span class="faq-arrow">&#9660;</span>
+          </div>
+          <div class="faq-answer"><p>No. Your email is sent to our backend server, which forwards it to the XposedOrNot API and returns the result. We do not log or store email addresses. The request is proxied server-side solely to avoid exposing the external API call from your browser.</p></div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            How current is the CVE data?
+            <span class="faq-arrow">&#9660;</span>
+          </div>
+          <div class="faq-answer"><p>CyberAware queries the NVD API in real time every time you search, so results are always current. The NVD database is updated continuously as new vulnerabilities are discovered and analyzed by NIST.</p></div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            What does it mean if a CVE has no score?
+            <span class="faq-arrow">&#9660;</span>
+          </div>
+          <div class="faq-answer"><p>Some CVEs are newly published and haven't yet been fully analyzed by NIST. They may show "?" or "Unknown" for severity until the NVD team assigns a CVSS score. This usually happens within a few days of initial publication.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function toggleFaq(questionEl) {
+        const answer = questionEl.nextElementSibling;
+        const arrow  = questionEl.querySelector('.faq-arrow');
+        const isOpen = arrow.classList.contains('open');
+
+        // Close all
+        document.querySelectorAll('.faq-answer').forEach(a => { a.style.maxHeight = '0'; });
+        document.querySelectorAll('.faq-arrow').forEach(a => a.classList.remove('open'));
+        if (!isOpen) {
+          answer.style.maxHeight = answer.scrollHeight + 'px';
+          arrow.classList.add('open');
+        }
+      }
+      window.addEventListener('load', () => {
+        anime({ targets: ['#step0','#step1','#step2','#step3','#step4'],
+          opacity: [0,1], translateX: [-16,0],
+          delay: anime.stagger(100), easing: 'easeOutQuad', duration: 400 });
+
+        anime({ targets: ['#fc0','#fc1','#fc2','#fc3'],
+          opacity: [0,1], translateY: [16,0],
+          delay: anime.stagger(80, { start: 400 }), easing: 'easeOutQuad', duration: 350 });
+      });
+    </script>
+  </body>
+</html>
