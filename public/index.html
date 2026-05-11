@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CyberAware — Dashboard</title>
+        <link rel="stylesheet" href="style.css" />
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+        <style>
+            .hero { padding: 2.5rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
+            .hero h1 span { color: var(--accent); }
+            .hero p { color: var(--text-dim); max-width: 560px; margin-top: 0.5rem; font-size: 0.92rem; }
+
+            .dashboard-grid {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+            }
+            @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+            .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+            .sidebar-section { padding: 1.1rem; }
+            .sidebar-section h3 {
+            font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 2px;
+            text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+            }
+            .filter-group { display: flex; flex-direction: column; gap: 8px; }
+            .filter-check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; }
+            .filter-check input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+            .sev-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+            .sev-CRITICAL { background: var(--critical); }
+            .sev-HIGH     { background: var(--high); }
+            .sev-MEDIUM   { background: var(--medium); }
+            .sev-LOW      { background: var(--low); }
+
+            .chart-panel { padding: 1.25rem; }
+            .chart-panel h3 { font-size: 0.75rem; font-family: var(--font-mono); color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1rem; }
+            .chart-wrap { position: relative; height: 160px; }
+
+            .main-content { display: flex; flex-direction: column; gap: 1rem; }
+            .results-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+            .results-count { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim); }
+
+            .view-tabs { display: flex; gap: 2px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; }
+            .view-tab {
+            padding: 5px 14px; border-radius: 4px; border: none;
+            font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 1px;
+            cursor: pointer; background: none; color: var(--text-dim);
+            transition: all 0.2s; text-transform: uppercase;
+            }
+            .view-tab.active { background: var(--accent); color: #000; font-weight: 700; }
+        </style>
+    </head>
+
+    <body>
+        <nav>
+            <a href="index.html" class="nav-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/>
+                </svg>
+                CYBERAWARE
+            </a>
+            <ul class="nav-links">
+                <li><a href="index.html" class="active">Dashboard</a></li>
+                <li><a href="breach.html">Breach Check</a></li>
+                <li><a href="about.html">About</a></li>
+                <li><a href="help.html">Help</a></li>
+            </ul>
+        </nav>
+
+        <div class="page">
+            <div class="hero">
+                <p class="section-label">// live threat intelligence</p>
+                <h1>CYBER<span>AWARE</span> DASHBOARD</h1>
+                <p>Showing the latest CVEs from the National Vulnerability Database. Search by vendor to filter results, or save CVEs to your watchlist.</p>
+            </div>
+
+            <div class="search-row">
+                <div class="search-input-wrap">
+                <input type="text" id="searchInput" placeholder="Search vendor or software (e.g. Windows, Chrome, Apache)..." />
+                </div>
+                <button class="btn btn-primary" id="searchBtn">&#128269; Search</button>
+                <button class="btn btn-outline" id="clearBtn" style="display:none">&#10005; Clear</button>
+            </div>
+
+            <div class="stats-strip" id="statsStrip" style="display:none">
+                <div class="stat-box"><div class="stat-num" id="statTotal">—</div><div class="stat-lbl">Total Results</div></div>
+                <div class="stat-box"><div class="stat-num" style="color:var(--critical)" id="statCrit">—</div><div class="stat-lbl">Critical</div></div>
+                <div class="stat-box"><div class="stat-num" style="color:var(--high)" id="statHigh">—</div><div class="stat-lbl">High</div></div>
+                <div class="stat-box"><div class="stat-num" style="color:var(--medium)" id="statMed">—</div><div class="stat-lbl">Medium</div></div>
+            </div>
+
+            <div class="dashboard-grid">
+                <aside class="sidebar">
+                    <div class="card sidebar-section">
+                        <h3>Severity Filter</h3>
+                        <div class="filter-group">
+                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="CRITICAL" checked><span class="sev-dot sev-CRITICAL"></span>Critical (9.0+)</label>
+                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="HIGH" checked><span class="sev-dot sev-HIGH"></span>High (7.0–8.9)</label>
+                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="MEDIUM" checked><span class="sev-dot sev-MEDIUM"></span>Medium (4.0–6.9)</label>
+                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="LOW" checked><span class="sev-dot sev-LOW"></span>Low (0.1–3.9)</label>
+                        </div>
+                    </div>
+                    <div class="card chart-panel">
+                        <h3>Severity Breakdown</h3>
+                        <div class="chart-wrap"><canvas id="severityChart"></canvas></div>
+                    </div>
+                    <div class="card chart-panel">
+                        <h3>Score Distribution</h3>
+                        <div class="chart-wrap"><canvas id="scoreChart"></canvas></div>
+                    </div>
+                </aside>
+
+                <main class="main-content">
+                    <div class="results-header">
+                        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+                        <div class="view-tabs">
+                            <button class="view-tab active" id="tabSearch" onclick="switchTab('search')">Latest CVEs</button>
+                            <button class="view-tab" id="tabWatch" onclick="switchTab('watch')">&#9733; Watchlist</button>
+                        </div>
+                            <span id="resultsHeader" style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim)">Latest CVEs</span>
+                        </div>
+                        <span class="results-count" id="resultsCount"></span>
+                    </div>
+
+                    <div id="searchPanel">
+                        <div id="cveList"><div class="spinner"></div></div>
+                    </div>
+
+                    <div id="watchPanel" style="display:none">
+                        <div id="watchList">
+                            <div class="empty-state"><div class="icon">&#9733;</div>No CVEs saved to your watchlist yet.</div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- CVE Detail Modal -->
+        <div class="modal-overlay" id="cveModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <span class="cve-id" id="modalId"></span>
+                    <button class="modal-close" onclick="closeModal()">&#10005;</button>
+                </div>
+                <div class="modal-section">
+                    <h3>Severity</h3>
+                        <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+                            <span id="modalBadge"></span>
+                            <div class="score-bar" style="flex:1">
+                                <div class="score-track"><div class="score-fill" id="modalScoreFill"></div></div>
+                                <span class="score-num" id="modalScore"></span>
+                            </div>
+                        </div>
+                </div>
+                <div class="modal-section">
+                    <h3>Description</h3>
+                    <p id="modalDesc"></p>
+                </div>
+                <div class="modal-section">
+                    <h3>Published</h3>
+                    <p id="modalDate" class="dimtext"></p>
+                </div>
+                <div class="modal-section" id="modalRefsSection">
+                    <h3>References</h3>
+                    <ul class="ref-list" id="modalRefs"></ul>
+                </div>
+                <div style="margin-top:1rem">
+                    <button class="btn btn-primary" id="modalSaveBtn">&#9733; Save to Watchlist</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="toast-container" id="toastContainer"></div>
+
+        <script>
+            // ── State ──────────────────────────────────────────────────────────────────────
+            let currentResults = [];
+            let watchlist = [];      // array of { cve_id, description, score, severity }
+            let cveMap = {};         // id → full cve object — avoids inline JSON in onclick
+            let currentTab = 'search';
+            let sevChart = null;
+            let scoreChart = null;
+
+            // ── Charts ─────────────────────────────────────────────────────────────────────
+            function initCharts() {
+            sevChart = new Chart(document.getElementById('severityChart'), {
+                type: 'doughnut',
+                data: {
+                labels: ['Critical','High','Medium','Low','Unknown'],
+                datasets: [{ data: [0,0,0,0,0],
+                    backgroundColor: ['#ff3b3b','#ff8c00','#f5c518','#22c55e','#6b7280'],
+                    borderColor: '#0c1520', borderWidth: 3 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: true, position: 'bottom',
+                    labels: { color: '#5a7a96', font: { family: 'Share Tech Mono', size: 10 }, boxWidth: 10, padding: 8 }
+                }}
+                }
+            });
+
+            scoreChart = new Chart(document.getElementById('scoreChart'), {
+                type: 'bar',
+                data: {
+                labels: ['1','2','3','4','5','6','7','8','9','10'],
+                datasets: [{ data: new Array(10).fill(0),
+                    backgroundColor: ctx => {
+                    const v = ctx.dataIndex;
+                    if (v >= 8) return '#ff3b3b';
+                    if (v >= 6) return '#ff8c00';
+                    if (v >= 3) return '#f5c518';
+                    return '#22c55e';
+                    },
+                    borderRadius: 3
+                }]
+                },
+                options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#5a7a96', font: { family: 'Share Tech Mono', size: 9 } }, grid: { color: '#1a3a5c' } },
+                    y: { ticks: { color: '#5a7a96', font: { family: 'Share Tech Mono', size: 9 } }, grid: { color: '#1a3a5c' } }
+                }
+                }
+            });
+            }
+
+            function updateCharts(results) {
+            const sev = { CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0, UNKNOWN:0 };
+            const buckets = new Array(10).fill(0);
+            results.forEach(r => {
+                const s = r.severity?.toUpperCase() || 'UNKNOWN';
+                if (sev[s] !== undefined) sev[s]++; else sev.UNKNOWN++;
+                if (r.score) {
+                const idx = Math.min(Math.floor(r.score) - 1, 9);
+                if (idx >= 0) buckets[idx]++;
+                }
+            });
+            sevChart.data.datasets[0].data = [sev.CRITICAL, sev.HIGH, sev.MEDIUM, sev.LOW, sev.UNKNOWN];
+            sevChart.update();
+            scoreChart.data.datasets[0].data = buckets;
+            scoreChart.update();
+
+            document.getElementById('statsStrip').style.display = 'flex';
+            document.getElementById('statTotal').textContent = results.length;
+            document.getElementById('statCrit').textContent = sev.CRITICAL;
+            document.getElementById('statHigh').textContent = sev.HIGH;
+            document.getElementById('statMed').textContent = sev.MEDIUM;
+            }
+
+            // ── Helpers ────────────────────────────────────────────────────────────────────
+            function severityColor(sev) {
+            if (sev === 'CRITICAL') return 'var(--critical)';
+            if (sev === 'HIGH')     return 'var(--high)';
+            if (sev === 'MEDIUM')   return 'var(--medium)';
+            if (sev === 'LOW')      return 'var(--low)';
+            return 'var(--unknown)';
+            }
+
+            function isWatched(cveId) {
+            return watchlist.some(w => w.cve_id === cveId);
+            }
+
+            // ── Fetch helpers ───────────────────────────────────────────────────────────────
+            async function fetchCVEs(keyword, severity) {
+            const params = new URLSearchParams();
+            if (keyword) params.set('keyword', keyword);
+            if (severity) params.set('severity', severity);
+            params.set('limit', 30);
+            const res = await fetch(`/cves?${params}`);
+            if (!res.ok) throw new Error('Failed to fetch CVEs from server');
+            return res.json();
+            }
+
+            async function fetchWatchlist() {
+            const res = await fetch('/watchlist');
+            if (!res.ok) return [];
+            return res.json();
+            }
+
+            // ── Search & render ─────────────────────────────────────────────────────────────
+            async function doSearch(keyword, severity) {
+            const list = document.getElementById('cveList');
+            list.innerHTML = '<div class="spinner"></div>';
+            document.getElementById('resultsCount').textContent = '';
+            try {
+                const data = await fetchCVEs(keyword, severity);
+                currentResults = data.results || [];
+                // Store in map so Watch buttons can look up by ID safely
+                currentResults.forEach(cve => { cveMap[cve.id] = cve; });
+                renderCVECards(applyFilters(currentResults));
+                updateCharts(currentResults);
+            } catch (e) {
+                list.innerHTML = `<div class="empty-state"><div class="icon">&#9888;</div>${e.message}</div>`;
+            }
+            }
+
+            function applyFilters(results) {
+            const checked = Array.from(document.querySelectorAll('.sev-filter:checked')).map(c => c.value);
+            return results.filter(r => {
+                const s = r.severity?.toUpperCase() || 'UNKNOWN';
+                return checked.includes(s) || checked.length === 0;
+            });
+            }
+
+            function renderCVECards(results) {
+            const list = document.getElementById('cveList');
+            document.getElementById('resultsCount').textContent = `${results.length} results`;
+
+            if (!results.length) {
+                list.innerHTML = '<div class="empty-state"><div class="icon">&#128270;</div>No CVEs found matching your filters.</div>';
+                return;
+            }
+
+            list.innerHTML = `<div class="cve-grid">${results.map(cve => cveCardHTML(cve)).join('')}</div>`;
+
+            anime({ targets: '.cve-card', opacity: [0,1], translateY: [12,0],
+                delay: anime.stagger(40), easing: 'easeOutQuad', duration: 350 });
+            }
+
+            function cveCardHTML(cve) {
+            const sev = cve.severity?.toUpperCase() || 'UNKNOWN';
+            const color = severityColor(sev);
+            const scorePct = cve.score ? (cve.score / 10 * 100).toFixed(0) : 0;
+            const date = cve.published ? new Date(cve.published).toLocaleDateString() : '—';
+            const watched = isWatched(cve.id);
+            // Use data-id attribute instead of inline JSON to avoid special character issues
+            return `
+            <div class="card cve-card">
+                <div class="cve-card-header">
+                <span class="cve-id">${cve.id}</span>
+                <span class="badge badge-${sev}">${sev}</span>
+                </div>
+                <p class="cve-desc">${escapeHtml(cve.description)}</p>
+                <div class="score-bar">
+                <div class="score-track"><div class="score-fill" style="width:${scorePct}%;background:${color}"></div></div>
+                <span class="score-num" style="color:${color}">${cve.score ?? '?'}</span>
+                </div>
+                <div class="cve-meta">
+                <span class="cve-date">Published: ${date}</span>
+                ${cve.vendor !== 'Unknown' ? `<span class="cve-date" style="color:var(--accent2)">&#128187; ${escapeHtml(cve.vendor)}</span>` : ''}
+                </div>
+                <div class="cve-actions">
+                <button class="btn btn-outline" style="font-size:0.75rem;padding:5px 10px"
+                    onclick="openModal('${cve.id}')">View Details</button>
+                <button class="btn ${watched ? 'btn-danger' : 'btn-outline'}" style="font-size:0.75rem;padding:5px 10px"
+                    data-cve-id="${cve.id}" onclick="handleWatchClick(this)">
+                    ${watched ? '&#9733; Saved' : '&#9734; Watch'}
+                </button>
+                </div>
+            </div>`;
+            }
+
+            // Safe HTML escaping so descriptions with quotes/apostrophes don't break HTML
+            function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+            }
+
+            // Watch button uses data-cve-id to look up from cveMap — no inline JSON needed
+            function handleWatchClick(btn) {
+            const cveId = btn.getAttribute('data-cve-id');
+            const cve = cveMap[cveId];
+            if (cve) toggleWatch(cve);
+            }
+
+            // ── Watchlist ───────────────────────────────────────────────────────────────────
+            async function toggleWatch(cve) {
+            const watched = isWatched(cve.id);
+
+            if (watched) {
+                const res = await fetch(`/watchlist/${cve.id}`, { method: 'DELETE' });
+                if (!res.ok) { toast('Failed to remove from watchlist', 'error'); return; }
+                watchlist = watchlist.filter(w => w.cve_id !== cve.id);
+                toast(`${cve.id} removed from watchlist`, 'error');
+            } else {
+                const res = await fetch('/watchlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cve_id: cve.id,
+                    description: cve.description,
+                    score: cve.score,
+                    severity: cve.severity
+                })
+                });
+                if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                toast(`Error: ${err.message || 'Could not save to watchlist'}`, 'error');
+                return;
+                }
+                watchlist.push({ cve_id: cve.id, description: cve.description, score: cve.score, severity: cve.severity });
+                toast(`${cve.id} saved to watchlist`, 'success');
+            }
+
+            renderCVECards(applyFilters(currentResults));
+            if (currentTab === 'watch') renderWatchlist();
+            }
+
+            async function renderWatchlist() {
+            const list = document.getElementById('watchList');
+            list.innerHTML = '<div class="spinner"></div>';
+            const items = await fetchWatchlist();
+
+            // Keep local watchlist in sync with DB
+            watchlist = items.map(i => ({
+                cve_id: i.cve_id, description: i.description, score: i.score, severity: i.severity
+            }));
+
+            if (!items.length) {
+                list.innerHTML = '<div class="empty-state"><div class="icon">&#9733;</div>No CVEs saved yet.<br><span class="dimtext">Search for CVEs and click Watch to save them.</span></div>';
+                return;
+            }
+
+            list.innerHTML = `<div class="cve-grid">${items.map(item => {
+                const sev = item.severity?.toUpperCase() || 'UNKNOWN';
+                const color = severityColor(sev);
+                const scorePct = item.score ? (item.score / 10 * 100).toFixed(0) : 0;
+                const date = item.saved_at ? new Date(item.saved_at).toLocaleDateString() : '—';
+                return `
+                <div class="card cve-card">
+                <div class="cve-card-header">
+                    <span class="cve-id">${item.cve_id}</span>
+                    <span class="badge badge-${sev}">${sev}</span>
+                </div>
+                <p class="cve-desc">${escapeHtml(item.description) || 'No description.'}</p>
+                <div class="score-bar">
+                    <div class="score-track"><div class="score-fill" style="width:${scorePct}%;background:${color}"></div></div>
+                    <span class="score-num" style="color:${color}">${item.score ?? '?'}</span>
+                </div>
+                <div class="cve-meta"><span class="cve-date">Saved: ${date}</span></div>
+                <div class="cve-actions">
+                    <button class="btn btn-outline" style="font-size:0.75rem;padding:5px 10px"
+                    onclick="openModal('${item.cve_id}')">View Details</button>
+                    <button class="btn btn-danger" style="font-size:0.75rem;padding:5px 10px"
+                    onclick="removeFromWatch('${item.cve_id}')">&#9733; Remove</button>
+                </div>
+                </div>`;
+            }).join('')}</div>`;
+            }
+
+            async function removeFromWatch(cveId) {
+            const res = await fetch(`/watchlist/${cveId}`, { method: 'DELETE' });
+            if (!res.ok) { toast('Failed to remove', 'error'); return; }
+            watchlist = watchlist.filter(w => w.cve_id !== cveId);
+            toast(`${cveId} removed`, 'error');
+            renderWatchlist();
+            }
+
+            // ── Tab switching ───────────────────────────────────────────────────────────────
+            function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('searchPanel').style.display = tab === 'search' ? 'block' : 'none';
+            document.getElementById('watchPanel').style.display  = tab === 'watch'  ? 'block' : 'none';
+            document.getElementById('tabSearch').classList.toggle('active', tab === 'search');
+            document.getElementById('tabWatch').classList.toggle('active', tab === 'watch');
+            if (tab === 'watch') renderWatchlist();
+            }
+
+            // ── Modal ───────────────────────────────────────────────────────────────────────
+            let modalCVE = null;
+
+            async function openModal(cveId) {
+            const overlay = document.getElementById('cveModal');
+            overlay.classList.add('open');
+            document.getElementById('modalId').textContent = cveId;
+            document.getElementById('modalDesc').textContent = 'Loading...';
+            document.getElementById('modalBadge').innerHTML = '';
+            document.getElementById('modalScore').textContent = '';
+            document.getElementById('modalRefs').innerHTML = '';
+            document.getElementById('modalDate').textContent = '';
+
+            try {
+                const res = await fetch(`/cves/${cveId}`);
+                if (!res.ok) throw new Error('Not found');
+                const cve = await res.json();
+                modalCVE = cve;
+                // Also add to cveMap in case it wasn't in current search results
+                cveMap[cve.id] = cve;
+
+                const sev = cve.severity?.toUpperCase() || 'UNKNOWN';
+                const color = severityColor(sev);
+                document.getElementById('modalBadge').innerHTML = `<span class="badge badge-${sev}">${sev}</span>`;
+                document.getElementById('modalScoreFill').style.cssText = `width:${(cve.score||0)/10*100}%;background:${color}`;
+                document.getElementById('modalScore').textContent = cve.score ?? '?';
+                document.getElementById('modalScore').style.color = color;
+                document.getElementById('modalDesc').textContent = cve.description;
+                document.getElementById('modalDate').textContent = cve.published ? new Date(cve.published).toLocaleString() : '—';
+
+                const refs = cve.references || [];
+                document.getElementById('modalRefsSection').style.display = refs.length ? 'block' : 'none';
+                document.getElementById('modalRefs').innerHTML = refs
+                .map(r => `<li><a href="${r}" target="_blank" rel="noopener">${r}</a></li>`)
+                .join('');
+
+                // Update save button label based on current watch state
+                document.getElementById('modalSaveBtn').textContent =
+                isWatched(cve.id) ? '✕ Remove from Watchlist' : '★ Save to Watchlist';
+            } catch {
+                document.getElementById('modalDesc').textContent = 'Could not load CVE details.';
+            }
+            }
+
+            function closeModal() {
+            document.getElementById('cveModal').classList.remove('open');
+            modalCVE = null;
+            }
+
+            document.getElementById('modalSaveBtn').addEventListener('click', async () => {
+            if (!modalCVE) return;
+            await toggleWatch(modalCVE);
+            // Update button label after saving
+            document.getElementById('modalSaveBtn').textContent =
+                isWatched(modalCVE.id) ? '✕ Remove from Watchlist' : '★ Save to Watchlist';
+            });
+
+            document.getElementById('cveModal').addEventListener('click', e => {
+            if (e.target === document.getElementById('cveModal')) closeModal();
+            });
+
+            // ── Toast ───────────────────────────────────────────────────────────────────────
+            function toast(msg, type = 'success') {
+            const c = document.getElementById('toastContainer');
+            const t = document.createElement('div');
+            t.className = `toast ${type}`;
+            t.textContent = (type === 'success' ? '✓ ' : '✕ ') + msg;
+            c.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+            }
+
+            // ── Event listeners ─────────────────────────────────────────────────────────────
+            document.getElementById('searchBtn').addEventListener('click', () => {
+            const kw = document.getElementById('searchInput').value.trim();
+            document.getElementById('clearBtn').style.display = kw ? 'inline-flex' : 'none';
+            document.getElementById('resultsHeader').textContent = kw ? `Results for "${kw}"` : 'Latest CVEs';
+            doSearch(kw || undefined, undefined);
+            });
+
+            document.getElementById('clearBtn').addEventListener('click', () => {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('clearBtn').style.display = 'none';
+            document.getElementById('resultsHeader').textContent = 'Latest CVEs';
+            doSearch(undefined, undefined);
+            });
+
+            document.getElementById('searchInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('searchBtn').click();
+            });
+
+            document.querySelectorAll('.sev-filter').forEach(cb => {
+            cb.addEventListener('change', () => renderCVECards(applyFilters(currentResults)));
+            });
+
+            // Init
+            // On page load: fetch CVEs from NVD and sync watchlist from Supabase
+            initCharts();
+            doSearch(undefined, undefined);
+            fetchWatchlist().then(items => {
+            watchlist = items.map(i => ({
+                cve_id: i.cve_id, description: i.description, score: i.score, severity: i.severity
+            }));
+            }).catch(() => {});
+        </script>
+    </body>
+</html>
