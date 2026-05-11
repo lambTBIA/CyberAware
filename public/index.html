@@ -53,7 +53,6 @@
             .view-tab.active { background: var(--accent); color: #000; font-weight: 700; }
         </style>
     </head>
-
     <body>
         <nav>
             <a href="index.html" class="nav-logo">
@@ -74,7 +73,7 @@
             <div class="hero">
                 <p class="section-label">// live threat intelligence</p>
                 <h1>CYBER<span>AWARE</span> DASHBOARD</h1>
-                <p>Showing the latest CVEs from the National Vulnerability Database. Search by vendor to filter results, or save CVEs to your watchlist.</p>
+                <p>Showing the most critical CVEs from the past two weeks. Search by vendor to filter results, or save CVEs to your watchlist.</p>
             </div>
 
             <div class="search-row">
@@ -97,10 +96,10 @@
                     <div class="card sidebar-section">
                         <h3>Severity Filter</h3>
                         <div class="filter-group">
-                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="CRITICAL" checked><span class="sev-dot sev-CRITICAL"></span>Critical (9.0+)</label>
-                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="HIGH" checked><span class="sev-dot sev-HIGH"></span>High (7.0–8.9)</label>
-                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="MEDIUM" checked><span class="sev-dot sev-MEDIUM"></span>Medium (4.0–6.9)</label>
-                        <label class="filter-check"><input type="checkbox" class="sev-filter" value="LOW" checked><span class="sev-dot sev-LOW"></span>Low (0.1–3.9)</label>
+                            <label class="filter-check"><input type="checkbox" class="sev-filter" value="CRITICAL" checked><span class="sev-dot sev-CRITICAL"></span>Critical (9.0+)</label>
+                            <label class="filter-check"><input type="checkbox" class="sev-filter" value="HIGH" checked><span class="sev-dot sev-HIGH"></span>High (7.0–8.9)</label>
+                            <label class="filter-check"><input type="checkbox" class="sev-filter" value="MEDIUM" checked><span class="sev-dot sev-MEDIUM"></span>Medium (4.0–6.9)</label>
+                            <label class="filter-check"><input type="checkbox" class="sev-filter" value="LOW" checked><span class="sev-dot sev-LOW"></span>Low (0.1–3.9)</label>
                         </div>
                     </div>
                     <div class="card chart-panel">
@@ -116,11 +115,11 @@
                 <main class="main-content">
                     <div class="results-header">
                         <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-                        <div class="view-tabs">
-                            <button class="view-tab active" id="tabSearch" onclick="switchTab('search')">Latest CVEs</button>
-                            <button class="view-tab" id="tabWatch" onclick="switchTab('watch')">&#9733; Watchlist</button>
-                        </div>
-                            <span id="resultsHeader" style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim)">Latest CVEs</span>
+                            <div class="view-tabs">
+                                <button class="view-tab active" id="tabSearch" onclick="switchTab('search')">Top CVEs</button>
+                                <button class="view-tab" id="tabWatch" onclick="switchTab('watch')">&#9733; Watchlist</button>
+                            </div>
+                            <span id="resultsHeader" style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim)">Most Critical — Last 2 Weeks</span>
                         </div>
                         <span class="results-count" id="resultsCount"></span>
                     </div>
@@ -154,6 +153,9 @@
                                 <span class="score-num" id="modalScore"></span>
                             </div>
                         </div>
+                    <p id="modalScoreNote" style="display:none;font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);margin-top:6px">
+                        &#9888; CVSS score not yet assigned by NVD. This CVE may be newly published and still under analysis.
+                    </p>
                 </div>
                 <div class="modal-section">
                     <h3>Description</h3>
@@ -264,11 +266,13 @@
             }
 
             // ── Fetch helpers ───────────────────────────────────────────────────────────────
-            async function fetchCVEs(keyword, severity) {
+            async function fetchCVEs(keyword, severity, isRecent = false) {
             const params = new URLSearchParams();
             if (keyword) params.set('keyword', keyword);
             if (severity) params.set('severity', severity);
-            params.set('limit', 30);
+            // Default view: fetch 50 from last 2 weeks so we always have enough critical CVEs
+            params.set('limit', isRecent ? 50 : 30);
+            if (isRecent) params.set('recent', 'true');
             const res = await fetch(`/cves?${params}`);
             if (!res.ok) throw new Error('Failed to fetch CVEs from server');
             return res.json();
@@ -281,14 +285,13 @@
             }
 
             // ── Search & render ─────────────────────────────────────────────────────────────
-            async function doSearch(keyword, severity) {
+            async function doSearch(keyword, severity, isRecent = false) {
             const list = document.getElementById('cveList');
             list.innerHTML = '<div class="spinner"></div>';
             document.getElementById('resultsCount').textContent = '';
             try {
-                const data = await fetchCVEs(keyword, severity);
+                const data = await fetchCVEs(keyword, severity, isRecent);
                 currentResults = data.results || [];
-                // Store in map so Watch buttons can look up by ID safely
                 currentResults.forEach(cve => { cveMap[cve.id] = cve; });
                 renderCVECards(applyFilters(currentResults));
                 updateCharts(currentResults);
@@ -486,11 +489,27 @@
                 cveMap[cve.id] = cve;
 
                 const sev = cve.severity?.toUpperCase() || 'UNKNOWN';
+                const hasScore = cve.score != null && sev !== 'UNKNOWN';
                 const color = severityColor(sev);
-                document.getElementById('modalBadge').innerHTML = `<span class="badge badge-${sev}">${sev}</span>`;
-                document.getElementById('modalScoreFill').style.cssText = `width:${(cve.score||0)/10*100}%;background:${color}`;
-                document.getElementById('modalScore').textContent = cve.score ?? '?';
+
+                // Badge label — never show raw "UNKNOWN", show severity or CVSS pending
+                const badgeLabel = sev === 'UNKNOWN' ? 'CVSS PENDING' : sev;
+                document.getElementById('modalBadge').innerHTML = `<span class="badge badge-${sev}">${badgeLabel}</span>`;
+
+                if (hasScore) {
+                // Scored CVE — show filled bar and numeric score
+                const scorePct = (cve.score / 10 * 100).toFixed(0);
+                document.getElementById('modalScoreFill').style.cssText = `width:${scorePct}%;background:${color}`;
+                document.getElementById('modalScore').textContent = cve.score;
                 document.getElementById('modalScore').style.color = color;
+                document.getElementById('modalScoreNote').style.display = 'none';
+                } else {
+                // Not yet scored by NVD — show empty bar with explanation
+                document.getElementById('modalScoreFill').style.cssText = 'width:0%;background:var(--unknown)';
+                document.getElementById('modalScore').textContent = 'N/A';
+                document.getElementById('modalScore').style.color = 'var(--unknown)';
+                document.getElementById('modalScoreNote').style.display = 'block';
+                }
                 document.getElementById('modalDesc').textContent = cve.description;
                 document.getElementById('modalDate').textContent = cve.published ? new Date(cve.published).toLocaleString() : '—';
 
@@ -539,15 +558,15 @@
             document.getElementById('searchBtn').addEventListener('click', () => {
             const kw = document.getElementById('searchInput').value.trim();
             document.getElementById('clearBtn').style.display = kw ? 'inline-flex' : 'none';
-            document.getElementById('resultsHeader').textContent = kw ? `Results for "${kw}"` : 'Latest CVEs';
-            doSearch(kw || undefined, undefined);
+            document.getElementById('resultsHeader').textContent = kw ? `Results for "${kw}"` : 'Most Critical — Last 2 Weeks';
+            doSearch(kw || undefined, undefined, !kw);
             });
 
             document.getElementById('clearBtn').addEventListener('click', () => {
             document.getElementById('searchInput').value = '';
             document.getElementById('clearBtn').style.display = 'none';
-            document.getElementById('resultsHeader').textContent = 'Latest CVEs';
-            doSearch(undefined, undefined);
+            document.getElementById('resultsHeader').textContent = 'Most Critical — Last 2 Weeks';
+            doSearch(undefined, undefined, true); // load last 2 weeks, sorted by severity
             });
 
             document.getElementById('searchInput').addEventListener('keydown', e => {
@@ -558,10 +577,10 @@
             cb.addEventListener('change', () => renderCVECards(applyFilters(currentResults)));
             });
 
-            // Init
-            // On page load: fetch CVEs from NVD and sync watchlist from Supabase
+            // ── Init ────────────────────────────────────────────────────────────────────────
+            // On page load: fetch recent critical CVEs and sync watchlist from Supabase
             initCharts();
-            doSearch(undefined, undefined);
+            doSearch(undefined, undefined, true);
             fetchWatchlist().then(items => {
             watchlist = items.map(i => ({
                 cve_id: i.cve_id, description: i.description, score: i.score, severity: i.severity

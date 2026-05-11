@@ -11,7 +11,7 @@ const port = 3000;
 app.use(bodyParser.json());
 app.use(express.static(__dirname + '/public'));
 
-// Supabase Client 
+// Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
@@ -22,58 +22,176 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = supabaseClient.createClient(supabaseUrl, supabaseKey);
 
-// CVE Routes (NVD API)
+// CVE Score Extraction Helper
+// NVD nests scores differently depending on CVE age and analysis status.
+// This tries every known location in order of preference.
+function extractScoreAndSeverity(cveMetrics) {
+  if (!cveMetrics) return { score: null, severity: 'UNKNOWN' };
 
+  // Try CVSS v3.1 first (most current)
+  const v31 = cveMetrics.cvssMetricV31?.[0];
+  if (v31) {
+    const score = v31.cvssData?.baseScore ?? null;
+    const severity = (v31.cvssData?.baseSeverity || v31.baseSeverity || '').toUpperCase();
+    // Derive severity from score if the field is missing or wrong
+    return { score, severity: severity || deriveSevertiy(score) };
+  }
+
+  // Try CVSS v3.0
+  const v30 = cveMetrics.cvssMetricV30?.[0];
+  if (v30) {
+    const score = v30.cvssData?.baseScore ?? null;
+    const severity = (v30.cvssData?.baseSeverity || v30.baseSeverity || '').toUpperCase();
+    return { score, severity: severity || deriveSevertiy(score) };
+  }
+
+  // Try CVSS v2 (older CVEs)
+  // so scores of 9.0+ correctly display as CRITICAL, not HIGH
+  const v2 = cveMetrics.cvssMetricV2?.[0];
+  if (v2) {
+    const score = v2.cvssData?.baseScore ?? null;
+    return { score, severity: deriveSevertiy(score) };
+  }
+
+  return { score: null, severity: 'UNKNOWN' };
+}
+
+// Derives a severity label from a numeric CVSS score using v3 thresholds.
+// Used as a fallback when the severity string is missing or empty.
+function deriveSevertiy(score) {
+  if (score === null || score === undefined) return 'UNKNOWN';
+  if (score >= 9.0) return 'CRITICAL';
+  if (score >= 7.0) return 'HIGH';
+  if (score >= 4.0) return 'MEDIUM';
+  if (score > 0)    return 'LOW';
+  return 'UNKNOWN';
+}
+
+// CVE Routes (NVD API) 
 /**
  * GET /cves
  * Fetches CVEs from NVD API and returns simplified JSON.
  * Query params: keyword, severity (CRITICAL|HIGH|MEDIUM|LOW), limit (default 20)
  */
 app.get('/cves', async (req, res) => {
-  const { keyword, severity, limit = 20 } = req.query;
+
+  const {
+    keyword,
+    severity,
+    limit = 20,
+    recent = 'true'
+  } = req.query;
 
   const params = new URLSearchParams();
-  params.set('resultsPerPage', Math.min(parseInt(limit) || 20, 50));
+
   params.set('startIndex', 0);
 
-  if (keyword) params.set('keywordSearch', keyword);
-  if (severity) params.set('cvssV3Severity', severity.toUpperCase());
+  // Add keyword/vendor search if provided
+  if (keyword) {
+    params.set('keywordSearch', keyword);
+  }
 
-  const nvdUrl = `https://services.nvd.nist.gov/rest/json/cves/2.0?${params.toString()}`;
+  // Apply severity filtering if provided
+  if (severity) {
+    params.set(
+      'cvssV3Severity',
+      severity.toUpperCase()
+    );
+  }
+
+  // Default behavior:
+  // ALWAYS show only vulnerabilities published
+  // within the past 14 days unless recent=false.
+  // This prevents extremely old CVEs from appearing
+  // in searches like "windows" or "apache".
+  if (recent !== 'false') {
+
+    const now = new Date();
+
+    const twoWeeksAgo = new Date(
+      now.getTime() - 14 * 24 * 60 * 60 * 1000
+    );
+
+    params.set(
+      'pubStartDate',
+      twoWeeksAgo.toISOString()
+    );
+
+    params.set(
+      'pubEndDate',
+      now.toISOString()
+    );
+
+    // Pull enough records for dashboard/searches
+    params.set('resultsPerPage', 100);
+
+  } else {
+
+    // Optional fallback if user explicitly disables recent filter
+    params.set(
+      'resultsPerPage',
+      Math.min(parseInt(limit) || 20, 100)
+    );
+
+  }
+
+  const nvdUrl =
+    `https://services.nvd.nist.gov/rest/json/cves/2.0?${params.toString()}`;
+
   console.log(`Fetching NVD: ${nvdUrl}`);
 
   try {
+
     const response = await fetch(nvdUrl);
+
     if (!response.ok) {
-      return res.status(502).json({ message: 'NVD API error', status: response.status });
+
+      return res.status(502).json({
+        message: 'NVD API error',
+        status: response.status
+      });
+
     }
 
     const raw = await response.json();
-    const vulnerabilities = raw.vulnerabilities || [];
 
+    const vulnerabilities =
+      raw.vulnerabilities || [];
+
+    // Simplify deeply nested NVD response
     const simplified = vulnerabilities.map(({ cve }) => {
-      const metrics =
-        cve.metrics?.cvssMetricV31?.[0]?.cvssData ||
-        cve.metrics?.cvssMetricV30?.[0]?.cvssData ||
-        cve.metrics?.cvssMetricV2?.[0]?.cvssData ||
-        null;
 
-      const baseScore = metrics?.baseScore ?? null;
-      const baseSeverity =
-        metrics?.baseSeverity ||
-        cve.metrics?.cvssMetricV31?.[0]?.baseSeverity ||
-        cve.metrics?.cvssMetricV30?.[0]?.baseSeverity ||
-        cve.metrics?.cvssMetricV2?.[0]?.baseSeverity ||
-        'UNKNOWN';
+      const {
+        score: baseScore,
+        severity: baseSeverity
+      } = extractScoreAndSeverity(cve.metrics);
 
       const descriptionEn =
-        cve.descriptions?.find((d) => d.lang === 'en')?.value || 'No description available.';
+        cve.descriptions?.find(
+          (d) => d.lang === 'en'
+        )?.value ||
+        'No description available.';
 
-      const vendorData = cve.configurations?.[0]?.nodes?.[0]?.cpeMatch?.[0]?.criteria || '';
-      const vendorMatch = vendorData.match(/cpe:2\.3:[ao]:([^:]+):/);
-      const vendor = vendorMatch ? vendorMatch[1].replace(/_/g, ' ') : 'Unknown';
+      // Extract vendor name from CPE string
+      const vendorData =
+        cve.configurations?.[0]
+          ?.nodes?.[0]
+          ?.cpeMatch?.[0]
+          ?.criteria || '';
 
-      const references = (cve.references || []).slice(0, 3).map((r) => r.url);
+      const vendorMatch =
+        vendorData.match(
+          /cpe:2\.3:[ao]:([^:]+):/
+        );
+
+      const vendor = vendorMatch
+        ? vendorMatch[1].replace(/_/g, ' ')
+        : 'Unknown';
+
+      const references =
+        (cve.references || [])
+          .slice(0, 3)
+          .map((r) => r.url);
 
       return {
         id: cve.id,
@@ -85,67 +203,33 @@ app.get('/cves', async (req, res) => {
         vendor,
         references,
       };
+
     });
 
-    res.json({ total: raw.totalResults, count: simplified.length, results: simplified });
-  } catch (err) {
-    console.error('NVD fetch error:', err);
-    res.status(500).json({ message: 'Internal server error fetching CVEs' });
-  }
-});
+    // Sort newest published CVEs first
+    const results = simplified.sort(
+      (a, b) =>
+        new Date(b.published) -
+        new Date(a.published)
+    );
 
-/**
- * GET /cves/:id
- * Returns full details for a single CVE by ID.
- */
-app.get('/cves/:id', async (req, res) => {
-  const cveId = req.params.id.toUpperCase();
-  const nvdUrl = `https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${cveId}`;
-  console.log(`Fetching single CVE: ${nvdUrl}`);
-
-  try {
-    const response = await fetch(nvdUrl);
-    if (!response.ok) {
-      return res.status(502).json({ message: 'NVD API error' });
-    }
-    const raw = await response.json();
-    const cve = raw.vulnerabilities?.[0]?.cve;
-    if (!cve) return res.status(404).json({ message: `${cveId} not found` });
-
-    const metrics =
-      cve.metrics?.cvssMetricV31?.[0]?.cvssData ||
-      cve.metrics?.cvssMetricV30?.[0]?.cvssData ||
-      cve.metrics?.cvssMetricV2?.[0]?.cvssData ||
-      null;
-
-    const baseScore = metrics?.baseScore ?? null;
-    const baseSeverity =
-      metrics?.baseSeverity ||
-      cve.metrics?.cvssMetricV31?.[0]?.baseSeverity ||
-      cve.metrics?.cvssMetricV30?.[0]?.baseSeverity ||
-      'UNKNOWN';
-
-    const descriptionEn =
-      cve.descriptions?.find((d) => d.lang === 'en')?.value || 'No description available.';
+    console.log(`CVEs returned: ${results.length}`);
 
     res.json({
-      id: cve.id,
-      published: cve.published,
-      lastModified: cve.lastModified,
-      description: descriptionEn,
-      score: baseScore,
-      severity: baseSeverity,
-      references: (cve.references || []).map((r) => r.url),
-      weaknesses: (cve.weaknesses || []).map((w) => w.description?.[0]?.value).filter(Boolean),
+      total: raw.totalResults,
+      count: results.length,
+      results
     });
+
   } catch (err) {
-    console.error('CVE detail fetch error:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('NVD fetch error:', err);
+    res.status(500).json({
+      message: 'Internal server error fetching CVEs'
+    });
   }
 });
 
 // Watchlist Routes (Supabase)
-
 /**
  * GET /watchlist
  * Returns all saved CVEs from Supabase, newest first.
@@ -171,10 +255,7 @@ app.get('/watchlist', async (req, res) => {
  */
 app.post('/watchlist', async (req, res) => {
   const { cve_id, description, score, severity } = req.body;
-
-  if (!cve_id) {
-    return res.status(400).json({ message: 'cve_id is required' });
-  }
+  if (!cve_id) return res.status(400).json({ message: 'cve_id is required' });
 
   const { data, error } = await supabase
     .from('watchlist')
@@ -196,7 +277,6 @@ app.post('/watchlist', async (req, res) => {
  */
 app.delete('/watchlist/:cveId', async (req, res) => {
   const cveId = req.params.cveId.toUpperCase();
-
   const { error } = await supabase
     .from('watchlist')
     .delete()
@@ -222,12 +302,8 @@ app.get('/breach/:email', async (req, res) => {
       `https://api.xposedornot.com/v1/check-email/${encodeURIComponent(email)}`
     );
 
-    if (response.status === 404) {
-      return res.json({ breached: false, breaches: [] });
-    }
-    if (!response.ok) {
-      return res.status(502).json({ message: 'XposedOrNot API error', status: response.status });
-    }
+    if (response.status === 404) return res.json({ breached: false, breaches: [] });
+    if (!response.ok) return res.status(502).json({ message: 'XposedOrNot API error' });
 
     const raw = await response.json();
     const breaches = Array.isArray(raw.breaches) ? raw.breaches : [];
