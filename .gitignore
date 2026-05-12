@@ -1,1 +1,16 @@
+# Environment variables
 .env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+
+# Mac system files
+.DS_Store
+
+# Vercel
+.vercel
+
+# Editor files
+.vscode/
