@@ -74,7 +74,6 @@ function deriveSevertiy(score) {
  * Query params: keyword, severity (CRITICAL|HIGH|MEDIUM|LOW), limit (default 20)
  */
 app.get('/cves', async (req, res) => {
-
   const {
     keyword,
     severity,
@@ -83,7 +82,6 @@ app.get('/cves', async (req, res) => {
   } = req.query;
 
   const params = new URLSearchParams();
-
   params.set('startIndex', 0);
 
   // Add keyword/vendor search if provided
@@ -105,9 +103,7 @@ app.get('/cves', async (req, res) => {
   // This prevents extremely old CVEs from appearing
   // in searches like "windows" or "apache".
   if (recent !== 'false') {
-
     const now = new Date();
-
     const twoWeeksAgo = new Date(
       now.getTime() - 14 * 24 * 60 * 60 * 1000
     );
@@ -126,7 +122,6 @@ app.get('/cves', async (req, res) => {
     params.set('resultsPerPage', 100);
 
   } else {
-
     // Optional fallback if user explicitly disables recent filter
     params.set(
       'resultsPerPage',
@@ -137,30 +132,23 @@ app.get('/cves', async (req, res) => {
 
   const nvdUrl =
     `https://services.nvd.nist.gov/rest/json/cves/2.0?${params.toString()}`;
-
   console.log(`Fetching NVD: ${nvdUrl}`);
 
   try {
-
     const response = await fetch(nvdUrl);
-
     if (!response.ok) {
-
       return res.status(502).json({
         message: 'NVD API error',
         status: response.status
       });
-
     }
 
     const raw = await response.json();
-
     const vulnerabilities =
       raw.vulnerabilities || [];
 
     // Simplify deeply nested NVD response
     const simplified = vulnerabilities.map(({ cve }) => {
-
       const {
         score: baseScore,
         severity: baseSeverity
@@ -203,7 +191,6 @@ app.get('/cves', async (req, res) => {
         vendor,
         references,
       };
-
     });
 
     // Sort newest published CVEs first
@@ -214,7 +201,6 @@ app.get('/cves', async (req, res) => {
     );
 
     console.log(`CVEs returned: ${results.length}`);
-
     res.json({
       total: raw.totalResults,
       count: results.length,
