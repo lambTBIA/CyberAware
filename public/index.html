@@ -471,77 +471,71 @@
             let modalCVE = null;
 
             async function openModal(cveId) {
-            const overlay = document.getElementById('cveModal');
-            overlay.classList.add('open');
-            document.getElementById('modalId').textContent = cveId;
-            document.getElementById('modalDesc').textContent = 'Loading...';
-            document.getElementById('modalBadge').innerHTML = '';
-            document.getElementById('modalScore').textContent = '';
-            document.getElementById('modalRefs').innerHTML = '';
-            document.getElementById('modalDate').textContent = '';
+                const overlay = document.getElementById('cveModal');
+                overlay.classList.add('open');
+                document.getElementById('modalId').textContent = cveId;
+                document.getElementById('modalDesc').textContent = 'Loading...';
+                document.getElementById('modalBadge').innerHTML = '';
+                document.getElementById('modalScore').textContent = '';
+                document.getElementById('modalRefs').innerHTML = '';
+                document.getElementById('modalDate').textContent = '';
 
-            try {
-                const res = await fetch(`/cves/${cveId}`);
-                if (!res.ok) throw new Error('Not found');
-                const cve = await res.json();
-                modalCVE = cve;
-                // Also add to cveMap in case it wasn't in current search results
-                cveMap[cve.id] = cve;
+                try {
+                    // Use cached data from cveMap — no separate endpoint needed
+                    const cve = cveMap[cveId];
+                    if (!cve) throw new Error('CVE not found in cache');
+                    modalCVE = cve;
 
-                const sev = cve.severity?.toUpperCase() || 'UNKNOWN';
-                const hasScore = cve.score != null && sev !== 'UNKNOWN';
-                const color = severityColor(sev);
+                    const sev = cve.severity?.toUpperCase() || 'UNKNOWN';
+                    const hasScore = cve.score != null && sev !== 'UNKNOWN';
+                    const color = severityColor(sev);
 
-                // Badge label — never show raw "UNKNOWN", show severity or CVSS pending
-                const badgeLabel = sev === 'UNKNOWN' ? 'CVSS PENDING' : sev;
-                document.getElementById('modalBadge').innerHTML = `<span class="badge badge-${sev}">${badgeLabel}</span>`;
+                    const badgeLabel = sev === 'UNKNOWN' ? 'CVSS PENDING' : sev;
+                    document.getElementById('modalBadge').innerHTML = `<span class="badge badge-${sev}">${badgeLabel}</span>`;
 
-                if (hasScore) {
-                // Scored CVE — show filled bar and numeric score
-                const scorePct = (cve.score / 10 * 100).toFixed(0);
-                document.getElementById('modalScoreFill').style.cssText = `width:${scorePct}%;background:${color}`;
-                document.getElementById('modalScore').textContent = cve.score;
-                document.getElementById('modalScore').style.color = color;
-                document.getElementById('modalScoreNote').style.display = 'none';
-                } else {
-                // Not yet scored by NVD — show empty bar with explanation
-                document.getElementById('modalScoreFill').style.cssText = 'width:0%;background:var(--unknown)';
-                document.getElementById('modalScore').textContent = 'N/A';
-                document.getElementById('modalScore').style.color = 'var(--unknown)';
-                document.getElementById('modalScoreNote').style.display = 'block';
+                    if (hasScore) {
+                        const scorePct = (cve.score / 10 * 100).toFixed(0);
+                        document.getElementById('modalScoreFill').style.cssText = `width:${scorePct}%;background:${color}`;
+                        document.getElementById('modalScore').textContent = cve.score;
+                        document.getElementById('modalScore').style.color = color;
+                        document.getElementById('modalScoreNote').style.display = 'none';
+                    } else {
+                        document.getElementById('modalScoreFill').style.cssText = 'width:0%;background:var(--unknown)';
+                        document.getElementById('modalScore').textContent = 'N/A';
+                        document.getElementById('modalScore').style.color = 'var(--unknown)';
+                        document.getElementById('modalScoreNote').style.display = 'block';
+                    }
+
+                    document.getElementById('modalDesc').textContent = cve.description;
+                    document.getElementById('modalDate').textContent = cve.published ? new Date(cve.published).toLocaleString() : '—';
+
+                    const refs = cve.references || [];
+                    document.getElementById('modalRefsSection').style.display = refs.length ? 'block' : 'none';
+                    document.getElementById('modalRefs').innerHTML = refs
+                        .map(r => `<li><a href="${r}" target="_blank" rel="noopener">${r}</a></li>`)
+                        .join('');
+
+                    document.getElementById('modalSaveBtn').textContent =
+                        isWatched(cve.id) ? '✕ Remove from Watchlist' : '★ Save to Watchlist';
+                } catch {
+                    document.getElementById('modalDesc').textContent = 'Could not load CVE details.';
                 }
-                document.getElementById('modalDesc').textContent = cve.description;
-                document.getElementById('modalDate').textContent = cve.published ? new Date(cve.published).toLocaleString() : '—';
-
-                const refs = cve.references || [];
-                document.getElementById('modalRefsSection').style.display = refs.length ? 'block' : 'none';
-                document.getElementById('modalRefs').innerHTML = refs
-                .map(r => `<li><a href="${r}" target="_blank" rel="noopener">${r}</a></li>`)
-                .join('');
-
-                // Update save button label based on current watch state
-                document.getElementById('modalSaveBtn').textContent =
-                isWatched(cve.id) ? '✕ Remove from Watchlist' : '★ Save to Watchlist';
-            } catch {
-                document.getElementById('modalDesc').textContent = 'Could not load CVE details.';
-            }
             }
 
             function closeModal() {
-            document.getElementById('cveModal').classList.remove('open');
-            modalCVE = null;
+                document.getElementById('cveModal').classList.remove('open');
+                modalCVE = null;
             }
 
-            document.getElementById('modalSaveBtn').addEventListener('click', async () => {
-            if (!modalCVE) return;
-            await toggleWatch(modalCVE);
-            // Update button label after saving
-            document.getElementById('modalSaveBtn').textContent =
-                isWatched(modalCVE.id) ? '✕ Remove from Watchlist' : '★ Save to Watchlist';
+            document.getElementById('cveModal').addEventListener('click', e => {
+                if (e.target === document.getElementById('cveModal')) closeModal();
             });
 
-            document.getElementById('cveModal').addEventListener('click', e => {
-            if (e.target === document.getElementById('cveModal')) closeModal();
+            document.getElementById('modalSaveBtn').addEventListener('click', async () => {
+                if (!modalCVE) return;
+                await toggleWatch(modalCVE);
+                document.getElementById('modalSaveBtn').textContent =
+                    isWatched(modalCVE.id) ? '✕ Remove from Watchlist' : '★ Save to Watchlist';
             });
 
             // ── Toast ───────────────────────────────────────────────────────────────────────

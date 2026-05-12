@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CyberAware — Breach Check</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- Chart.js (JS Library 1) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Anime.js (JS Library 2) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+    <style>
+      .breach-hero {
+        padding: 2.5rem 0 2rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 2.5rem;
+      }
+      .breach-hero h1 span { color: var(--critical); }
+      .breach-hero p { color: var(--text-dim); max-width: 560px; margin-top: 0.5rem; font-size: 0.92rem; }
+
+      .check-box {
+        max-width: 600px;
+        margin: 0 auto 2.5rem;
+        text-align: center;
+      }
+      .check-box .input-row {
+        display: flex; gap: 10px; align-items: stretch;
+      }
+      .check-box input { flex: 1; font-size: 1rem; padding: 0.75rem 1rem; }
+      .check-box .btn { padding: 0.75rem 1.6rem; font-size: 0.85rem; white-space: nowrap; }
+
+      .privacy-note {
+        display: flex; align-items: flex-start; gap: 10px;
+        background: rgba(0,200,255,0.05); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 0.9rem 1.1rem;
+        font-size: 0.82rem; color: var(--text-dim); margin-top: 1rem; text-align: left;
+      }
+      .privacy-note .icon { font-size: 1.1rem; flex-shrink: 0; }
+
+      /* Result panels */
+      .result-safe {
+        text-align: center; padding: 3rem 2rem;
+        animation: fadeUp 0.4s ease;
+      }
+      .result-safe .big-icon { font-size: 4rem; margin-bottom: 1rem; }
+      .result-safe h2 { color: var(--low); margin-bottom: 0.5rem; }
+      .result-safe p  { color: var(--text-dim); font-size: 0.9rem; }
+
+      .result-breached { animation: fadeUp 0.4s ease; }
+      .result-breached .alert-bar {
+        background: rgba(255,59,59,0.08);
+        border: 1px solid rgba(255,59,59,0.3);
+        border-radius: var(--radius);
+        padding: 1rem 1.4rem;
+        display: flex; align-items: center; gap: 14px;
+        margin-bottom: 1.5rem;
+      }
+      .alert-bar .alert-icon { font-size: 1.8rem; }
+      .alert-bar h2 { color: var(--critical); font-size: 1.1rem; }
+      .alert-bar p  { color: var(--text-dim); font-size: 0.85rem; margin-top: 2px; }
+
+      .breach-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        align-items: start;
+      }
+      @media (max-width: 700px) { .breach-grid { grid-template-columns: 1fr; } }
+
+      .breach-list { display: flex; flex-direction: column; gap: 0.65rem; }
+      .breach-item {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0.7rem 1rem;
+        background: var(--bg3); border: 1px solid var(--border);
+        border-radius: var(--radius); gap: 8px; flex-wrap: wrap;
+      }
+      .breach-name { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text); }
+      .breach-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--critical); flex-shrink: 0;
+      }
+
+      .chart-card { padding: 1.25rem; }
+      .chart-card h3 { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 1rem; }
+      .chart-wrap { height: 220px; position: relative; }
+
+      @keyframes fadeUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+    </style>
+  </head>
+  <body>
+
+    <nav>
+      <a href="index.html" class="nav-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/>
+        </svg>
+        CYBERAWARE
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="breach.html" class="active">Breach Check</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="help.html">Help</a></li>
+      </ul>
+    </nav>
+
+    <div class="page">
+      <div class="breach-hero">
+        <p class="section-label">// personal risk assessment</p>
+        <h1>DATA <span>BREACH</span> CHECK</h1>
+        <p>Check if your email address has appeared in a known public data breach. Powered by the XposedOrNot API.</p>
+      </div>
+
+      <div class="check-box">
+        <div class="input-row">
+          <input type="email" id="emailInput" placeholder="Enter your email address..." />
+          <button class="btn btn-primary" id="checkBtn">&#128270; Check Now</button>
+        </div>
+        <div class="privacy-note">
+          <span class="icon">&#128274;</span>
+          <span>Your email is sent to our server and forwarded to XposedOrNot's open API, which only checks against public breach records. We do not store your email address.</span>
+        </div>
+      </div>
+      <div id="resultArea"></div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+    <script>
+      let breachChart = null;
+
+      async function checkBreach() {
+        const email = document.getElementById('emailInput').value.trim();
+        if (!email || !email.includes('@')) {
+          toast('Please enter a valid email address.', 'error');
+          return;
+        }
+
+        const btn = document.getElementById('checkBtn');
+        btn.disabled = true;
+        btn.textContent = 'Checking...';
+        document.getElementById('resultArea').innerHTML = '<div class="spinner"></div>';
+
+        try {
+          const res = await fetch(`/breach/${encodeURIComponent(email)}`);
+          if (!res.ok) throw new Error('Server error checking breach');
+          const data = await res.json();
+          renderResult(email, data);
+        } catch (e) {
+          document.getElementById('resultArea').innerHTML =
+            `<div class="empty-state"><div class="icon">&#9888;</div>${e.message}</div>`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🔍 Check Now';
+        }
+      }
+
+      function renderResult(email, data) {
+        const area = document.getElementById('resultArea');
+
+        if (!data.breached || !data.breaches.length) {
+          area.innerHTML = `
+            <div class="result-safe">
+              <div class="big-icon">&#9989;</div>
+              <h2>No Breaches Found</h2>
+              <p><strong style="color:var(--text)">${email}</strong> was not found in any known public data breach.</p>
+              <p class="mt-2">This check covers publicly disclosed breaches. Always use strong, unique passwords and enable 2FA.</p>
+            </div>`;
+          return;
+        }
+
+        const breaches = data.breaches;
+
+        area.innerHTML = `
+          <div class="result-breached">
+            <div class="alert-bar">
+              <div class="alert-icon">&#9888;</div>
+              <div>
+                <h2>Breached in ${breaches.length} Data Leak${breaches.length > 1 ? 's' : ''}</h2>
+                <p><strong>${email}</strong> was found in the following public data breaches. Change your passwords immediately.</p>
+              </div>
+            </div>
+
+            <div class="breach-grid">
+              <div>
+                <p class="section-label">// affected services</p>
+                <div class="breach-list" id="breachList"></div>
+              </div>
+              <div class="card chart-card">
+                <h3>Breach Timeline</h3>
+                <div class="chart-wrap"><canvas id="breachChart"></canvas></div>
+              </div>
+            </div>
+
+            <div class="card mt-3" style="padding:1.2rem">
+              <p class="section-label">// recommended actions</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.75rem;margin-top:0.75rem">
+                <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-size:1.1rem">&#128273;</span><span style="font-size:0.85rem">Change passwords for all listed services immediately.</span></div>
+                <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-size:1.1rem">&#128241;</span><span style="font-size:0.85rem">Enable two-factor authentication everywhere.</span></div>
+                <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-size:1.1rem">&#128274;</span><span style="font-size:0.85rem">Use a password manager with unique passwords per site.</span></div>
+                <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-size:1.1rem">&#128270;</span><span style="font-size:0.85rem">Monitor your accounts for suspicious activity.</span></div>
+              </div>
+            </div>
+          </div>`;
+
+        // Populate breach list
+        const list = document.getElementById('breachList');
+        breaches.forEach((b, i) => {
+          const item = document.createElement('div');
+          item.className = 'breach-item';
+          item.innerHTML = `<div class="breach-dot"></div><span class="breach-name">${b}</span>`;
+          list.appendChild(item);
+        });
+
+        // Animate items
+        anime({ targets: '.breach-item', opacity: [0,1], translateX: [-16,0],
+          delay: anime.stagger(60), easing: 'easeOutQuad', duration: 350 });
+        // XposedOrNot doesn't always return dates, so we create a distribution
+        if (breachChart) { breachChart.destroy(); breachChart = null; }
+
+        // Group by first letter (simulated timeline from dataset names)
+        const groups = {};
+        breaches.forEach(b => {
+          const letter = b[0]?.toUpperCase() || '?';
+          groups[letter] = (groups[letter] || 0) + 1;
+        });
+        const labels = Object.keys(groups).sort();
+        const values = labels.map(l => groups[l]);
+
+        breachChart = new Chart(document.getElementById('breachChart'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Breaches',
+              data: values,
+              backgroundColor: 'rgba(255,59,59,0.6)',
+              borderColor: 'rgba(255,59,59,1)',
+              borderWidth: 1, borderRadius: 3
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#5a7a96', font: { family: 'Share Tech Mono', size: 10 } }, grid: { color: '#1a3a5c' } },
+              y: { ticks: { color: '#5a7a96', font: { family: 'Share Tech Mono', size: 10 }, stepSize: 1 }, grid: { color: '#1a3a5c' } }
+            }
+          }
+        });
+      }
+
+      function toast(msg, type = 'success') {
+        const c = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.textContent = msg;
+        c.appendChild(t);
+        setTimeout(() => t.remove(), 3500);
+      }
+
+      document.getElementById('checkBtn').addEventListener('click', checkBreach);
+      document.getElementById('emailInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') checkBreach();
+      });
+    </script>
+  </body>
+</html>
